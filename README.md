@@ -2,8 +2,21 @@
 Self-compiling Kotlin SDK add-on projects in a single repo.
 
 __INFO:__ 
-Work on this project directly. 
-Do not work on it as a submodule of another project.
+If your submodule status is: 
+    
+- HEAD detached from b9fc903
+
+...then do the followings:
+```shell
+# it the submodule directory
+git checkout master
+git pull
+
+# ...and then in the main project
+git submodule update --remote --rebase  # or --merge
+git add <submodule>
+git commit -m "Update <submodule> to latest commit"
+```
 
 
 ## How to include it in your project
