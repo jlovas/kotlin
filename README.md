@@ -1,4 +1,4 @@
-# kotlin project
+# kotlin project (group)
 Self-compiling Kotlin SDK add-on projects in a single repo.
 
 ## How to include it in your project
