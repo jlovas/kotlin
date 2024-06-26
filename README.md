@@ -1,6 +1,7 @@
 # Kotlin project (group)
 Self-compiling Kotlin SDK add-on projects in a single repo.
 
+
 __INFO:__ 
 If your submodule status is: 
     
@@ -8,18 +9,18 @@ If your submodule status is:
 
 ...then do the followings:
 ```shell
-# it the submodule directory
+# in the submodule directory (stash your changes first)
 git checkout master
 git pull
 
 # ...and then in the main project
-git submodule update --remote --rebase  # or --merge
-git add <submodule>
+git submodule update --remote --rebase  # or --merge; updates the FETCH_HEAD file
+git add <submodule>                     # add the updated submodule to the main project
 git commit -m "Update <submodule> to latest commit"
 ```
 
 
-## How to include it in your project
+## How to include it in your main project
 ### include in your Git project as a submodule:
 ```sh
 git submodule add git@github.com:jlovas/kotlin.git lib/github.com/jlovas/kotlin
