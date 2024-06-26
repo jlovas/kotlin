@@ -1,5 +1,8 @@
 package hu.jlovas.kcli
 
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 import kotlin.reflect.KProperty
 import kotlin.system.exitProcess
 
@@ -37,12 +40,12 @@ fun Cmd.fromArgs(args: Array<String>) {
                         false
                     }
                 ) {
-                    option.value = nextArg
+                    option.setStringValue(nextArg)
                 } else {
                     error("Wrong value for option: $arg: $nextArg")
                 }
             } else {
-                option.value = true.toString()
+                option.setStringValue(true.toString())
             }
 
             // OPTION FUNCTION
@@ -87,7 +90,7 @@ fun Cmd.subCmd(name: String, description: String, function: (() -> Unit)? = null
 data class Cmd(
     val name: String,
     val description: String,
-    val cmdOptions: MutableList<CmdOption> = mutableListOf(),
+    val cmdOptions: MutableList<CmdOption<*>> = mutableListOf(),
     val subCmds: MutableList<Cmd> = mutableListOf(),
     val defaultArg: CmdArgument = CmdArgument(name = "argument", minimum = 0, maximum = 0),
     val function: (() -> Unit)? = null
@@ -140,30 +143,133 @@ fun Cmd.option(
     longName: String? = null,
     description: String,
     required: Boolean = false,
-    defaultValue: String? = null,
-    withValue: Boolean = required || defaultValue != null,
+    defaultValue: String = "",
     function: ((Cmd) -> Unit)? = null,
     valid: ((String) -> Boolean)? = null
-): CmdOption {
-    val option = CmdOption(name, longName, description, required, defaultValue, withValue, function, valid)
+): CmdOption<String> {
+    val option = CmdOption<String>(name, longName, description, required, defaultValue, true, function, valid)
     cmdOptions.add(option)
     return option
 }
 
-class CmdOption(
+fun Cmd.optionInt(
+    name: String,
+    longName: String? = null,
+    description: String,
+    required: Boolean = false,
+    defaultValue: Int = 0,
+    function: ((Cmd) -> Unit)? = null,
+    valid: ((String) -> Boolean)? = null
+): CmdOption<Int> {
+    val option = CmdOption<Int>(name, longName, description, required, defaultValue, true, function, valid)
+    cmdOptions.add(option)
+    return option
+}
+
+fun Cmd.optionFloat(
+    name: String,
+    longName: String? = null,
+    description: String,
+    required: Boolean = false,
+    defaultValue: Float = 0.0F,
+    function: ((Cmd) -> Unit)? = null,
+    valid: ((String) -> Boolean)? = null
+): CmdOption<Float> {
+    val option = CmdOption<Float>(name, longName, description, required, defaultValue, true, function, valid)
+    cmdOptions.add(option)
+    return option
+}
+
+fun Cmd.optionDouble(
+    name: String,
+    longName: String? = null,
+    description: String,
+    required: Boolean = false,
+    defaultValue: Double = 0.0,
+    function: ((Cmd) -> Unit)? = null,
+    valid: ((String) -> Boolean)? = null
+): CmdOption<Double> {
+    val option = CmdOption<Double>(name, longName, description, required, defaultValue, true, function, valid)
+    cmdOptions.add(option)
+    return option
+}
+
+fun Cmd.optionDate(
+    name: String,
+    longName: String? = null,
+    description: String,
+    required: Boolean = false,
+    defaultValue: String = "1970-01-01",
+    function: ((Cmd) -> Unit)? = null,
+    valid: ((String) -> Boolean)? = null
+): CmdOption<LocalDate> {
+    val defaultDateValue: LocalDate = LocalDate.parse(defaultValue, DateTimeFormatter.ISO_LOCAL_DATE)
+    val option = CmdOption<LocalDate>(name, longName, description, required, defaultDateValue, true, function, valid)
+    cmdOptions.add(option)
+    return option
+}
+
+fun Cmd.optionTime(
+    name: String,
+    longName: String? = null,
+    description: String,
+    required: Boolean = false,
+    defaultValue: String = "00:00:00",
+    function: ((Cmd) -> Unit)? = null,
+    valid: ((String) -> Boolean)? = null
+): CmdOption<LocalTime> {
+    val defaultTimeValue = LocalTime.parse(defaultValue)
+    val option = CmdOption<LocalTime>(name, longName, description, required, defaultTimeValue, true, function, valid)
+    cmdOptions.add(option)
+    return option
+}
+
+fun Cmd.optionBool(
+    name: String,
+    longName: String? = null,
+    description: String,
+    required: Boolean = false,
+    defaultValue: Boolean = false,
+    function: ((Cmd) -> Unit)? = null,
+    valid: ((String) -> Boolean)? = null
+): CmdOption<Boolean> {
+    val option = CmdOption<Boolean>(name, longName, description, required, defaultValue, false, function, valid)
+    cmdOptions.add(option)
+    return option
+}
+
+class CmdOption<T>(
     val name: String,
     val longName: String? = null,
     val description: String,
     val required: Boolean = false,
-    val defaultValue: String? = null,
+    val defaultValue: T,
     val withValue: Boolean = required || defaultValue != null,
     val function: ((Cmd) -> Unit)? = null,
     val valid: ((String) -> Boolean)? = null,
 ) {
-    var value: String? = defaultValue
-        internal set
+    private var _valueFromCmd: T? = null
 
-    operator fun getValue(thisRef: Any?, property: KProperty<*>): String? {
+    val value: T
+        get() = _valueFromCmd ?: if (required) error("Missing required option: ${longName ?: name}") else defaultValue
+
+    val given: Boolean
+        get() = _valueFromCmd != null
+
+    fun setStringValue(newValue: String) {
+        when (defaultValue) {
+            is String -> _valueFromCmd = newValue as T
+            is LocalDate -> _valueFromCmd = LocalDate.parse(newValue, DateTimeFormatter.ISO_LOCAL_DATE) as T
+            is LocalTime -> _valueFromCmd = LocalTime.parse(newValue) as T
+            is Boolean -> _valueFromCmd = newValue.toBoolean() as T
+            is Int -> _valueFromCmd = newValue.toInt() as T
+            is Long -> _valueFromCmd = newValue.toLong() as T
+            is Double -> _valueFromCmd = newValue.toDouble() as T
+            else -> error("Unhandled option type of '$name', ${defaultValue!!::class.simpleName}")
+        }
+    }
+
+    operator fun getValue(thisRef: Any?, property: KProperty<*>): T {
         return value
     }
 
@@ -172,7 +278,7 @@ class CmdOption(
         usage.append("    -${name} --${longName}  ")
         if (required) usage.append('*')
         usage.append(" ${description} ")
-        if (defaultValue != null) usage.append("(default: '${defaultValue}')")
+        if (defaultValue.toString().isNotEmpty()) usage.append("(default: '${defaultValue}')")
         return usage.toString()
     }
 }
