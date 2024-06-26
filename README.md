@@ -1,8 +1,12 @@
-# kotlin project (group)
+# Kotlin project (group)
 Self-compiling Kotlin SDK add-on projects in a single repo.
 
-## How to include it in your project
+__INFO:__ 
+Work on this project directly. 
+Do not work on it as a submodule of another project.
 
+
+## How to include it in your project
 ### include in your Git project as a submodule:
 ```sh
 git submodule add git@github.com:jlovas/kotlin.git lib/github.com/jlovas/kotlin
@@ -12,7 +16,6 @@ git commit -m "kotlin submodule added"
 
 
 ### Include in your build (example: "kcli" subproject)
-
 #### settings.gradle.kts
 ```kotlin
 include(":kcli")
