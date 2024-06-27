@@ -35,7 +35,7 @@ fun Cmd.fromArgs(args: Array<String>) {
             if (option.withValue) {
                 val nextArg = args.getOrNull(index++) ?: error("Missing value for option: $arg")
                 if (try {
-                        option.valid?.invoke(nextArg) != false
+                        option.converter(nextArg) != null
                     } catch (_: Throwable) {
                         false
                     }
@@ -69,7 +69,7 @@ fun Cmd.fromArgs(args: Array<String>) {
         // TODO: how can I detect if there is no subcommand in the command line?
     }
     // CHECK REQUIRED ARGUMENTS
-    cmdOptions.firstOrNull() { it.required && it.value == null }?.apply { error("Missing option: ${longName ?: name}") }
+    cmdOptions.firstOrNull() { it.required && !it.given }?.apply { error("Missing option: ${longName ?: name}") }
     // CHECK MINIMUM ARGUMENT NUMBER
     if (argument.values.size < argument.minimum) {
         error("Missing argument: ${argument.name}")
@@ -142,12 +142,10 @@ fun Cmd.option(
     name: String,
     longName: String? = null,
     description: String,
-    required: Boolean = false,
-    defaultValue: String = "",
+    defaultValue: String? = null,
     function: ((Cmd) -> Unit)? = null,
-    valid: ((String) -> Boolean)? = null
 ): CmdOption<String> {
-    val option = CmdOption<String>(name, longName, description, required, defaultValue, true, function, valid)
+    val option = CmdOption<String>(name, longName, description, true, defaultValue, function= function)
     cmdOptions.add(option)
     return option
 }
@@ -156,12 +154,11 @@ fun Cmd.optionInt(
     name: String,
     longName: String? = null,
     description: String,
-    required: Boolean = false,
-    defaultValue: Int = 0,
+    defaultValue: Int? = null,
     function: ((Cmd) -> Unit)? = null,
-    valid: ((String) -> Boolean)? = null
+    converter: (String) -> Int = { it.toInt() }
 ): CmdOption<Int> {
-    val option = CmdOption<Int>(name, longName, description, required, defaultValue, true, function, valid)
+    val option = CmdOption<Int>(name, longName, description, true, defaultValue, function= function, converter= converter)
     cmdOptions.add(option)
     return option
 }
@@ -170,12 +167,11 @@ fun Cmd.optionFloat(
     name: String,
     longName: String? = null,
     description: String,
-    required: Boolean = false,
-    defaultValue: Float = 0.0F,
+    defaultValue: Float? = null,
     function: ((Cmd) -> Unit)? = null,
-    valid: ((String) -> Boolean)? = null
+    converter: (String) -> Float = { it.toFloat() }
 ): CmdOption<Float> {
-    val option = CmdOption<Float>(name, longName, description, required, defaultValue, true, function, valid)
+    val option = CmdOption<Float>(name, longName, description, true, defaultValue, function= function, converter= converter)
     cmdOptions.add(option)
     return option
 }
@@ -184,12 +180,11 @@ fun Cmd.optionDouble(
     name: String,
     longName: String? = null,
     description: String,
-    required: Boolean = false,
-    defaultValue: Double = 0.0,
+    defaultValue: Double? = null,
     function: ((Cmd) -> Unit)? = null,
-    valid: ((String) -> Boolean)? = null
+    converter: (String) -> Double = { it.toDouble() }
 ): CmdOption<Double> {
-    val option = CmdOption<Double>(name, longName, description, required, defaultValue, true, function, valid)
+    val option = CmdOption<Double>(name, longName, description, true, defaultValue, function= function, converter= converter)
     cmdOptions.add(option)
     return option
 }
@@ -198,13 +193,14 @@ fun Cmd.optionDate(
     name: String,
     longName: String? = null,
     description: String,
-    required: Boolean = false,
-    defaultValue: String = "1970-01-01",
+    defaultValue: String? = null,
     function: ((Cmd) -> Unit)? = null,
-    valid: ((String) -> Boolean)? = null
+    converter: (String) -> LocalDate = { LocalDate.parse(it, DateTimeFormatter.ISO_LOCAL_DATE) }
 ): CmdOption<LocalDate> {
-    val defaultDateValue: LocalDate = LocalDate.parse(defaultValue, DateTimeFormatter.ISO_LOCAL_DATE)
-    val option = CmdOption<LocalDate>(name, longName, description, required, defaultDateValue, true, function, valid)
+    val defaultDateValue = defaultValue?.let {
+        LocalDate.parse(defaultValue, DateTimeFormatter.ISO_LOCAL_DATE)
+    }
+    val option = CmdOption<LocalDate>(name, longName, description, true, defaultDateValue, function= function, converter= converter)
     cmdOptions.add(option)
     return option
 }
@@ -213,13 +209,14 @@ fun Cmd.optionTime(
     name: String,
     longName: String? = null,
     description: String,
-    required: Boolean = false,
-    defaultValue: String = "00:00:00",
+    defaultValue: String? = null,
     function: ((Cmd) -> Unit)? = null,
-    valid: ((String) -> Boolean)? = null
+    converter: ((String) -> LocalTime) = {  LocalTime.parse(it) }
 ): CmdOption<LocalTime> {
-    val defaultTimeValue = LocalTime.parse(defaultValue)
-    val option = CmdOption<LocalTime>(name, longName, description, required, defaultTimeValue, true, function, valid)
+    val defaultTimeValue = defaultValue?.let {
+        LocalTime.parse(defaultValue)
+    }
+    val option = CmdOption<LocalTime>(name, longName, description, true, defaultTimeValue, function= function, converter= converter)
     cmdOptions.add(option)
     return option
 }
@@ -228,12 +225,10 @@ fun Cmd.optionBool(
     name: String,
     longName: String? = null,
     description: String,
-    required: Boolean = false,
-    defaultValue: Boolean = false,
     function: ((Cmd) -> Unit)? = null,
-    valid: ((String) -> Boolean)? = null
+    converter: (String) -> Boolean = { it.toBoolean() }
 ): CmdOption<Boolean> {
-    val option = CmdOption<Boolean>(name, longName, description, required, defaultValue, false, function, valid)
+    val option = CmdOption<Boolean>(name, longName, description, false, false, function=function, converter=converter)
     cmdOptions.add(option)
     return option
 }
@@ -242,31 +237,24 @@ class CmdOption<T>(
     val name: String,
     val longName: String? = null,
     val description: String,
-    val required: Boolean = false,
-    val defaultValue: T,
-    val withValue: Boolean = required || defaultValue != null,
+    val withValue: Boolean,
+    val defaultValue: T? = null,
     val function: ((Cmd) -> Unit)? = null,
-    val valid: ((String) -> Boolean)? = null,
+    val converter: ((String) -> T) = { it as? T ?: error("Incompatible converter for option: ${longName ?: name}") },
 ) {
     private var _valueFromCmd: T? = null
 
     val value: T
-        get() = _valueFromCmd ?: if (required) error("Missing required option: ${longName ?: name}") else defaultValue
+        get() = _valueFromCmd ?: defaultValue ?: error("Missing given and default value for option: ${longName ?: name}")
 
     val given: Boolean
         get() = _valueFromCmd != null
 
+    val required: Boolean
+        get() = defaultValue == null
+
     fun setStringValue(newValue: String) {
-        when (defaultValue) {
-            is String -> _valueFromCmd = newValue as T
-            is LocalDate -> _valueFromCmd = LocalDate.parse(newValue, DateTimeFormatter.ISO_LOCAL_DATE) as T
-            is LocalTime -> _valueFromCmd = LocalTime.parse(newValue) as T
-            is Boolean -> _valueFromCmd = newValue.toBoolean() as T
-            is Int -> _valueFromCmd = newValue.toInt() as T
-            is Long -> _valueFromCmd = newValue.toLong() as T
-            is Double -> _valueFromCmd = newValue.toDouble() as T
-            else -> error("Unhandled option type of '$name', ${defaultValue!!::class.simpleName}")
-        }
+        _valueFromCmd = converter(newValue)
     }
 
     operator fun getValue(thisRef: Any?, property: KProperty<*>): T {
@@ -275,10 +263,11 @@ class CmdOption<T>(
 
     override fun toString(): String {
         val usage = StringBuilder()
-        usage.append("    -${name} --${longName}  ")
+        usage.append("    -${name}")
+        if (longName != null ) usage.append(" --$longName ") else usage.append("        ")
         if (required) usage.append('*')
         usage.append(" ${description} ")
-        if (defaultValue.toString().isNotEmpty()) usage.append("(default: '${defaultValue}')")
+        if (defaultValue != null) usage.append("(default: '${defaultValue}')")
         return usage.toString()
     }
 }

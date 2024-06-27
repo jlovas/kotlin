@@ -7,7 +7,7 @@ import kotlin.test.BeforeTest
 class KcliTest {
 
     val mainCmd = Cmd("callgraph", "Cobol, RPG, CL Source parser and call graph generator")
-    val opIndexFile by mainCmd.option("i", "index", "Index file.", false, "./QSYS_IDX.TXT")
+    val opIndexFile by mainCmd.option("i", "index", "Index file.", "./QSYS_IDX.TXT")
     val opDryRun  by mainCmd.optionBool("d", "dry-run", "It runs without write.")
     val opQuiet   by mainCmd.optionBool("q", "quiet", "It does not print extra information.")
     val opHelp    by mainCmd.optionBool("h", "help", "Prints help message", function = { mainCmd.printUsage() })
