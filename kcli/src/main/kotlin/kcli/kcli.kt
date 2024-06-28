@@ -6,116 +6,111 @@ import java.time.format.DateTimeFormatter
 import kotlin.reflect.KProperty
 import kotlin.system.exitProcess
 
-fun Cmd.fromArgs(args: Array<String>) {
-    if (args.isEmpty()) {
-        printUsage()
-        exitProcess(0)
-    }
-
-    var index = 0
-    while (index < args.size) {
-        val arg = args[index++]
-        // OPTION
-        if (arg.startsWith("-")) {
-            val option =
-                if (arg.startsWith("--")) {
-                    // LONG OPTION
-                    val longName = arg.substring(2)
-                    println("-Option name: $longName")
-                    cmdOptions.find { it.longName == longName } ?: error("Unknown long option: $longName")
-                } else {
-                    // SHORT OPTION
-                    val name = arg.substring(1)
-                    println("-Option name: $name")
-                    cmdOptions.find { it.name == name }
-                        ?: error("Unknown short option: $name")
-                }
-
-            // OPTION VALUE
-            if (option.withValue) {
-                val nextArg = args.getOrNull(index++) ?: error("Missing value for option: $arg")
-                if (try {
-                        option.converter(nextArg) != null
-                    } catch (_: Throwable) {
-                        false
-                    }
-                ) {
-                    option.setStringValue(nextArg)
-                } else {
-                    error("Wrong value for option: $arg: $nextArg")
-                }
-            } else {
-                option.setStringValue(true.toString())
-            }
-
-            // OPTION FUNCTION
-            option.function?.invoke(this)
-        } else {
-            val cmd = subCmds.find { it.name == arg }
-            if (cmd == null) {
-                // ARGUMENT
-                argument.values = args.slice((index - 1)..<args.size)
-                println("-Values of <${argument.name}> argument: ${argument.values}")
-                break
-            } else {
-                // SUBCOMMAND
-                cmd.fromArgs(args.copyOfRange(index, args.size))
-                break
-            }
-        }
-    }
-
-    if (isRootCmd() && subCmds.isNotEmpty()) {
-        // TODO: how can I detect if there is no subcommand in the command line?
-    }
-    // CHECK REQUIRED ARGUMENTS
-    cmdOptions.firstOrNull() { it.required && !it.given }?.apply { error("Missing option: ${longName ?: name}") }
-    // CHECK MINIMUM ARGUMENT NUMBER
-    if (argument.values.size < argument.minimum) {
-        error("Missing argument: ${argument.name}")
-    }
-    // CHECK MAXIMUM ARGUMENT NUMBER
-    if (argument.values.size > argument.maximum) {
-        error("Too many arguments: ${argument.name}")
-    }
-    function?.invoke()
-}
-
-fun Cmd.subCmd(name: String, description: String, function: (() -> Unit)? = null): Cmd {
-    val cmd = Cmd(this, name, description, function = function)
-    subCmds.add(cmd)
-    return cmd
-}
-
-data class Cmd(
+/**
+ * # Kotlin Command Line Interface (KCLI)
+ *
+ * Example command line help output:
+ * ```
+ * Description: Cobol, RPG, CL Source parser and call graph generator
+ *
+ *  Usage:
+ *    with Gradle: ./gradlew run --args="<option> <subcommand>"
+ *    as FatJar  : java -jar <app_fatjar>.jar <option> <subcommand>
+ *
+ * Options:
+ *     -i --index  Index file. (default: './QSYS_IDX.TXT')
+ *     -I --Int  A Int option (default: '1')
+ *     -F --Float  A Float option (default: '1.0')
+ *     -d --double  A Double option (default: '1.0')
+ *     -D --Date  A Date option (default: '2021-01-01')
+ *     -T --Time  A Time option (default: '00:00')
+ *     -h --help  Prints help message (default: 'false')
+ *
+ * Subcommands:
+ *   index <options> <source_dir>    Parses and indexes program source files from the given directory
+ *     -r --run-time  Measure running time. (default: 'false')
+ *     -d --dry-run  It runs without write. (default: 'false')
+ *     <source_dir>    Default: ./
+ *
+ *   query <options> <program_name>    Print call graph as list.
+ *     -f --format  Output columns: n:name, l:line number, f:file_name, p:path, w:with_redundant_marker_* (default: 'n l f p w')
+ *     -t --thin-column  Print columns without padding them to the same size. (default: 'false')
+ * ```
+ *
+ * Example implementation:
+ *
+ * ```kotlin
+ *     val mainCmd = Cmd("callgraph", "Cobol, RPG, CL Source parser and call graph generator")
+ *     val opIndexFile by mainCmd.option("i", "index", "Index file.", "./QSYS_IDX.TXT")
+ *     val opIntNumber   by mainCmd.optionInt("I", "Int", "A Int option", defaultValue = 1)
+ *     val opFloatNumber   by mainCmd.optionFloat("F", "Float", "A Float option", defaultValue = 1.0f)
+ *     val opDoubleNumber   by mainCmd.optionDouble("d", "double", "A Double option", defaultValue = 1.0)
+ *     val opDateNumber   by mainCmd.optionDate("D", "Date", "A Date option", defaultValue = "2021-01-01")
+ *     val opTimeNumber   by mainCmd.optionTime("T", "Time", "A Time option", defaultValue = "00:00:00")
+ *     val opHelp    by mainCmd.optionBool("h", "help", "Prints help message", function = { mainCmd.printUsage() })
+ *
+ *     // Subcommand 1.
+ *     val cmdIndex = mainCmd.subCmd("index", "Parses and indexes program source files from the given directory").apply {
+ *         val opDuration   by optionBool("r", "run-time", "Measure running time.")
+ *         val opDryRun     by optionBool("d", "dry-run", "It runs without write.")
+ *         val argSrcDir by argument("source_dir", minimum = 1, maximum = 1, defaults = listOf("./") )
+ *         function { indexPrograms(argSrcDir.first(), opIndexFile, opDryRun, opDuration) }
+ *     }
+ *
+ *     // Subcommand 2.
+ *     val cmdQuery = mainCmd.subCmd("query", "Print call graph as list.").apply {
+ *         val opFormat            by option("f", "format", "Output columns: n:name, l:line number, f:file_name, p:path, w:with_redundant_marker_*", defaultValue = "n l f p w")
+ *         val opThinColumn      by optionBool("t", "thin-column", "Print columns without padding them to the same size.")
+ *         val argProgramName by argument("program_name", minimum = 1, maximum = 1)
+ *         function { queryPrograms(
+ *             programName = argProgramName.first().uppercase(),
+ *             format = opFormat,
+ *             paddingColumns = !opThinColumn,
+ *         ) }
+ *     }
+ * ```
+ */
+open class Cmd(
     val name: String,
     val description: String,
-    val cmdOptions: MutableList<CmdOption<*>> = mutableListOf(),
-    val subCmds: MutableList<Cmd> = mutableListOf(),
     val defaultArg: CmdArgument = CmdArgument(name = "argument", minimum = 0, maximum = 0),
-    val function: (() -> Unit)? = null
+    var function: (Cmd.() -> Unit)? = null
 ) {
-    private var rootCmd: Cmd? = null
+    internal var rootCmd: Cmd? = null
+    internal val cmdOptions: MutableList<CmdOption<*>> = mutableListOf()
+    internal val subCmds: MutableList<Cmd> = mutableListOf()
     var argument: CmdArgument = defaultArg
         internal set
 
     fun isRootCmd() = rootCmd === null
 
-    internal constructor(
-        rootCmd: Cmd,
-        name: String,
-        description: String,
-        function: (() -> Unit)? = null,
-    ) : this(name, description, function = function) {
-        this.rootCmd = rootCmd
+    fun subCmd(name: String, description: String, function: (Cmd.() -> Unit)? = null): Cmd {
+        val cmd = Cmd(name, description, function = function)
+        cmd.rootCmd = this
+        subCmds.add(cmd)
+        return cmd
     }
 
+    fun argument(name: String, minimum: Int = 1, maximum: Int = 1, defaults: List<String> = emptyList()) =
+        CmdArgument(name = name, minimum = minimum, maximum = maximum, defaultArgs = defaults).apply {
+            argument = this
+        }
+
+    fun function(function: Cmd.() -> Unit): Cmd {
+        this.function = function
+        return this
+    }
+
+    operator fun invoke(args: Array<String>) = fromArgs(args)
+
     fun printUsage() {
-        if (rootCmd == null) {
+        if ( isRootCmd() ) {
             println()
             println("Description: ${description}")
             println()
             println("Usage: ${name} <option> <subcommand> $argument")
+            println("  with Gradle: ./gradlew run --args='<option> <subcommand>'")
+            println("  as FatJar  : java -jar build/libs/callgraph-1.0-app.jar <option> <subcommand>")
             println()
             println("Options:")
         } else {
@@ -136,7 +131,77 @@ data class Cmd(
             subCmds.forEach { it.printUsage() }
         }
     }
+
+    fun fromArgs(args: Array<String>) {
+        if (args.isEmpty()) {
+            printUsage()
+            exitProcess(0)
+        }
+
+        var index = 0
+        while (index < args.size) {
+            val arg = args[index++]
+            // OPTION
+            if (arg.startsWith("-")) {
+                val option =
+                    if (arg.startsWith("--")) {
+                        // LONG OPTION
+                        val longName = arg.substring(2)
+                        cmdOptions.find { it.longName == longName } ?: error("Unknown long option: $longName")
+                    } else {
+                        // SHORT OPTION
+                        val name = arg.substring(1)
+                        cmdOptions.find { it.name == name }
+                            ?: error("Unknown short option: $name")
+                    }
+
+                // OPTION VALUE
+                if (option.withValue) {
+                    val nextArg = args.getOrNull(index++) ?: error("Missing value for option: $arg")
+                    if (try {
+                            option.converter(nextArg) != null
+                        } catch (_: Throwable) {
+                            false
+                        }
+                    ) {
+                        option.setStringValue(nextArg)
+                    } else {
+                        error("Wrong value for option: $arg: $nextArg")
+                    }
+                } else {
+                    option.setStringValue(true.toString())
+                }
+
+                // OPTION FUNCTION
+                option.function?.invoke(this)
+            } else {
+                val cmd = subCmds.find { it.name == arg }
+                if (cmd == null) {
+                    // ARGUMENT
+                    argument.values = args.slice((index - 1)..<args.size)
+                    break
+                } else {
+                    // SUBCOMMAND
+                    cmd.fromArgs(args.copyOfRange(index, args.size))
+                    break
+                }
+            }
+        }
+
+        // CHECK REQUIRED ARGUMENTS
+        cmdOptions.firstOrNull() { it.required && !it.given }?.apply { error("Missing option: ${longName ?: name}") }
+        // CHECK MINIMUM ARGUMENT NUMBER
+        if (argument.values.size < argument.minimum) {
+            error("Missing argument: ${argument.name}")
+        }
+        // CHECK MAXIMUM ARGUMENT NUMBER
+        if (argument.values.size > argument.maximum) {
+            error("Too many arguments: ${argument.name} ${argument.minimum} ${argument.maximum} ${argument.values.size}")
+        }
+        function?.invoke(this)
+    }
 }
+
 
 fun Cmd.option(
     name: String,
@@ -233,6 +298,7 @@ fun Cmd.optionBool(
     return option
 }
 
+
 class CmdOption<T>(
     val name: String,
     val longName: String? = null,
@@ -242,19 +308,19 @@ class CmdOption<T>(
     val function: ((Cmd) -> Unit)? = null,
     val converter: ((String) -> T) = { it as? T ?: error("Incompatible converter for option: ${longName ?: name}") },
 ) {
-    private var _valueFromCmd: T? = null
+    internal var _value: T? = null
 
     val value: T
-        get() = _valueFromCmd ?: defaultValue ?: error("Missing given and default value for option: ${longName ?: name}")
+        get() = _value ?: defaultValue ?: error("Missing both given and default value for option: ${longName ?: name}")
 
     val given: Boolean
-        get() = _valueFromCmd != null
+        get() = _value != null
 
     val required: Boolean
         get() = defaultValue == null
 
     fun setStringValue(newValue: String) {
-        _valueFromCmd = converter(newValue)
+        _value = converter(newValue)
     }
 
     operator fun getValue(thisRef: Any?, property: KProperty<*>): T {
@@ -272,10 +338,6 @@ class CmdOption<T>(
     }
 }
 
-fun Cmd.argument(name: String, minimum: Int = 1, maximum: Int = 1, defaults: List<String> = emptyList()): CmdArgument {
-    argument = CmdArgument(name = name, minimum = minimum, maximum = maximum, defaultArgs = defaults)
-    return argument
-}
 
 class CmdArgument(
     val name: String,
