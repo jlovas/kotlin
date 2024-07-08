@@ -26,7 +26,7 @@ Subcommands:
     -d --dry-run  It runs without write. (default: 'false')
     <source_dir>    Default: ./
 
-  query <options> <program_name>    Print call graph as list.
+  query <options> <program_names>    Print call graph as list.
     -f --format  Output columns: n:name, l:line number, f:file_name, p:path, w:with_redundant_marker_(default: 'n l f p w')
     -t --thin-column  Print columns without padding them to the same size. (default: 'false')
 ```
@@ -35,29 +35,29 @@ Example implementation:
 
 ```kotlin
     val mainCmd = Cmd("callgraph", "Cobol, RPG, CL Source parser and call graph generator")
-    val opIndexFile by mainCmd.option("i", "index", "Index file.", "./QSYS_IDX.TXT")
-    val opIntNumber   by mainCmd.optionInt("I", "Int", "A Int option", defaultValue = 1)
-    val opFloatNumber   by mainCmd.optionFloat("F", "Float", "A Float option", defaultValue = 1.0f)
-    val opDoubleNumber   by mainCmd.optionDouble("D", "Double", "A Double option", defaultValue = 1.0)
+    val opIndexFile    by mainCmd.option("i", "index", "Index file.", "./QSYS_IDX.TXT")
+    val opIntNumber    by mainCmd.optionInt("I", "Int", "A Int option", defaultValue = 1)
+    val opFloatNumber  by mainCmd.optionFloat("F", "Float", "A Float option", defaultValue = 1.0f)
+    val opDoubleNumber by mainCmd.optionDouble("D", "Double", "A Double option", defaultValue = 1.0)
     val opDateNumber   by mainCmd.optionDate("D", "Date", "A Date option", defaultValue = "2021-01-01")
     val opTimeNumber   by mainCmd.optionTime("T", "Time", "A Time option", defaultValue = "00:00:00")
-    val opHelp    by mainCmd.optionBool("h", "help", "Prints help message", function = { mainCmd.printUsage() })
+    val opHelp         by mainCmd.optionBool("h", "help", "Prints help message") { mainCmd.printUsage() }
 
     // Subcommand 1.
     val cmdIndex = mainCmd.subCmd("index", "Parses and indexes program source files from the given directory").apply {
         val opDuration   by optionBool("r", "run-time", "Measure running time.")
         val opDryRun     by optionBool("d", "dry-run", "It runs without write.")
-        val argSrcDir by argument("source_dir", minimum = 1, maximum = 1, defaults = listOf("./") )
+        val argSrcDir    by argument("source_dir", "./" )
         function { indexPrograms(argSrcDir.first(), opIndexFile, opDryRun, opDuration) }
     }
 
     // Subcommand 2.
     val cmdQuery = mainCmd.subCmd("query", "Print call graph as list.").apply {
-        val opFormat            by option("f", "format", "Output columns: n:name, l:line number, f:file_name, p:path, w:with_redundant_marker_", defaultValue = "n l f p w")
-        val opThinColumn      by optionBool("t", "thin-column", "Print columns without padding them to the same size.")
-        val argProgramName by argument("program_name", minimum = 1, maximum = 1)
+        val opFormat        by option("f", "format", "Output columns: n:name, l:line number, f:file_name, p:path, w:with_redundant_marker_", defaultValue = "n l f p w")
+        val opThinColumn    by optionBool("t", "thin-column", "Print columns without padding them to the same size.")
+        val argProgramNames by argument("program_names", 1..99)
         function { queryPrograms(
-            programName = argProgramName.first().uppercase(),
+            programName = argProgramNames,
             format = opFormat,
             paddingColumns = !opThinColumn,
         ) }

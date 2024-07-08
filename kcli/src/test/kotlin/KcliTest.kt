@@ -17,7 +17,7 @@ class KcliTest {
     val opDoubleNumber   by mainCmd.optionDouble("d", "double", "A Double option", defaultValue = 1.2)
     val opDateNumber   by mainCmd.optionDate("D", "Date", "A Date option", defaultValue = "2021-02-03")
     val opTimeNumber   by mainCmd.optionTime("T", "Time", "A Time option", defaultValue = "01:02:03")
-    val opHelp    by mainCmd.optionBool("h", "help", "Prints help message", function = {
+    val opHelp    by mainCmd.optionBool("h", "help", "Prints help message", func = {
         println("helpFuncrion called")
         helpCalled = true
     })
@@ -26,7 +26,7 @@ class KcliTest {
     val cmdIndex = mainCmd.subCmd("index", "Parses and indexes program source files from the given directory").apply {
         val opDuration   by optionBool("r", "run-time", "Measure running time.")
         val opDryRun     by optionBool("d", "dry-run", "It runs without write.")
-        val argSrcDir by argument("source_dir", minimum = 1, maximum = 1, defaults = listOf("./") )
+        val argSrcDir by argument("source_dir", count = 1, maximum = 1, defaults = listOf("./") )
         function {
             println("indexPrograms called")
             indexCalled = true
@@ -37,7 +37,7 @@ class KcliTest {
     val cmdQuery = mainCmd.subCmd("query", "Print call graph as list.").apply {
         val opFormat            by option("f", "format", "Output columns: n:name, l:line number, f:file_name, p:path, w:with_redundant_marker_*")
         val opThinColumn      by optionBool("t", "thin-column", "Print columns without padding them to the same size.")
-        val argProgramName by argument("program_name", minimum = 1, maximum = 1)
+        val argProgramName by argument("program_name", count = 1, maximum = 1)
         function {
             println("queryPrograms called: t=$opThinColumn, f=$opFormat, program_name=${argProgramName.first()}")
             queryCalled = true
@@ -51,9 +51,9 @@ class KcliTest {
 
     @Test
     fun `GIVEN a Cmd object WHEN before parse arguments THEN the 'given' flag is false`() {
-        assertFalse( mainCmd.cmdOptions.any { it.given } )
-        assertFalse( cmdIndex.cmdOptions.any { it.given } )
-        assertFalse( cmdQuery.cmdOptions.any { it.given } )
+        assertFalse( mainCmd.options.any { it.given } )
+        assertFalse( cmdIndex.options.any { it.given } )
+        assertFalse( cmdQuery.options.any { it.given } )
     }
 
         @Test
@@ -71,10 +71,10 @@ class KcliTest {
         assertFalse(queryCalled)
 
         assertThrows(IllegalStateException::class.java) {
-            cmdQuery.cmdOptions[0].value
+            cmdQuery.options[0].value
         }
-        assertNull(cmdQuery.cmdOptions[0]._value)
-        assertFalse(cmdQuery.cmdOptions[1].value as Boolean)
+        assertNull(cmdQuery.options[0]._value)
+        assertFalse(cmdQuery.options[1].value as Boolean)
     }
 
     var helpCalled = false
@@ -121,8 +121,8 @@ class KcliTest {
         assertFalse(indexCalled)
         assertTrue(queryCalled)
 
-        assertEquals(cmdQuery.cmdOptions[0].value, cmdLineArgumentsMap["-f"])
-        assertTrue(cmdQuery.cmdOptions[1].value as Boolean)
+        assertEquals(cmdQuery.options[0].value, cmdLineArgumentsMap["-f"])
+        assertTrue(cmdQuery.options[1].value as Boolean)
     }
 
     @Test
@@ -131,8 +131,8 @@ class KcliTest {
             mainCmd(cmdLineArguments)
         }
 
-        assertTrue( mainCmd.cmdOptions.all { it.given } )
-        assertFalse( cmdIndex.cmdOptions.any { it.given } )
-        assertTrue( cmdQuery.cmdOptions.all { it.given } )
+        assertTrue( mainCmd.options.all { it.given } )
+        assertFalse( cmdIndex.options.any { it.given } )
+        assertTrue( cmdQuery.options.all { it.given } )
     }
 }
