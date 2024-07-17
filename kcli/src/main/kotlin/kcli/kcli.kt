@@ -73,13 +73,13 @@ import kotlin.system.exitProcess
 open class Cmd(
     val name: String,
     val description: String,
-//    protected val defaultArg: CmdArgument = CmdArgument(name = "argument", minimum = 0, maximum = 0),
+    defaultArg: CmdArgument = CmdArgument(name = "no_arg", minimum = 0, maximum = 0),
     protected var function: (Cmd.() -> Unit)? = null
 ) {
     protected var rootCmd: Cmd? = null
     protected val cmdOptions: MutableList<CmdOption<*>> = mutableListOf()
     protected val subCmds: MutableList<Cmd> = mutableListOf()
-    protected var argument: CmdArgument = CmdArgument("", 0, 0)
+    protected var argument: CmdArgument = defaultArg
 
     fun isRootCmd() = rootCmd === null
 
@@ -305,7 +305,6 @@ fun Cmd.optionBool(
 ) =
     CmdOption<Boolean>(name, longName, desc, false, false, function=func, converter=converter).also { this += it }
 
-
 class CmdOption<T>(
     val name: String,
     val longName: String? = null,
@@ -347,9 +346,9 @@ class CmdOption<T>(
 
 
 class CmdArgument(
-    internal var name: String,
-    internal var minimum: Int,
-    internal var maximum: Int,
+    internal val name: String,
+    internal val minimum: Int,
+    internal val maximum: Int,
     defaultArgs: List<String> = emptyList(),
 ) {
     var values: List<String> = defaultArgs

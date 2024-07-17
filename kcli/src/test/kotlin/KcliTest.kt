@@ -26,7 +26,7 @@ class KcliTest {
     val cmdIndex = mainCmd.subCmd("index", "Parses and indexes program source files from the given directory").apply {
         val opDuration   by optionBool("r", "run-time", "Measure running time.")
         val opDryRun     by optionBool("d", "dry-run", "It runs without write.")
-        val argSrcDir by argument("source_dir", count = 1, maximum = 1, defaults = listOf("./") )
+        val argSrcDir by argument("source_dir", default = "./" )
         function {
             println("indexPrograms called")
             indexCalled = true
@@ -37,7 +37,7 @@ class KcliTest {
     val cmdQuery = mainCmd.subCmd("query", "Print call graph as list.").apply {
         val opFormat            by option("f", "format", "Output columns: n:name, l:line number, f:file_name, p:path, w:with_redundant_marker_*")
         val opThinColumn      by optionBool("t", "thin-column", "Print columns without padding them to the same size.")
-        val argProgramName by argument("program_name", count = 1, maximum = 1)
+        val argProgramName by arguments("program_name", count = 1..1)
         function {
             println("queryPrograms called: t=$opThinColumn, f=$opFormat, program_name=${argProgramName.first()}")
             queryCalled = true
