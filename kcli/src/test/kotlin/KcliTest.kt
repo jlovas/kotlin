@@ -17,7 +17,7 @@ class KcliTest {
     val opDoubleNumber   by mainCmd.optionDouble("d", "double", "A Double option", defaultValue = 1.2)
     val opDateNumber   by mainCmd.optionDate("D", "Date", "A Date option", defaultValue = "2021-02-03")
     val opTimeNumber   by mainCmd.optionTime("T", "Time", "A Time option", defaultValue = "01:02:03")
-    val opHelp    by mainCmd.optionBool("h", "help", "Prints help message", func = {
+    val opHelp    by mainCmd.optionBool("h", "help", "Prints help message", function = {
         println("helpFuncrion called")
         helpCalled = true
     })

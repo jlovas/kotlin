@@ -70,6 +70,35 @@ import kotlin.system.exitProcess
  *     }
  * ```
  */
+
+/**
+ * Main entry point for building type-safe CLI applications.
+ *
+ * Manages options, subcommands, and positional arguments. Parses command-line arguments
+ * via [fromArgs], prints help via [printUsage], and executes the configured command function.
+ *
+ * Use Kotlin property delegation with the `by` operator to declare options and arguments
+ * that are automatically parsed and validated.
+ *
+ * @property name The command name displayed in usage output and help messages.
+ * @property description The command description shown in help output.
+ *
+ * **Example:**
+ * ```kotlin
+ * val cmd = Cmd("myapp", "My CLI Application")
+ * val opFile by cmd.option("f", "file", "Input file", "./default.txt")
+ * val opVerbose by cmd.optionBool("v", "verbose", "Verbose output")
+ *
+ * cmd.function {
+ *     println("Processing file: $opFile (verbose=$opVerbose)")
+ * }
+ *
+ * cmd(args)  // Parse and execute
+ * ```
+ *
+ * @see CmdOption for type-safe option definitions
+ * @see CmdArgument for positional argument definitions
+ */
 open class Cmd(
     val name: String,
     val description: String,
@@ -183,7 +212,9 @@ open class Cmd(
                     val nextArg = args.getOrNull(index++) ?: error("Missing value for option: $arg")
                     if (try {
                             option.converter(nextArg) != null
-                        } catch (_: Throwable) {
+                        } catch (e: NumberFormatException) {
+                            false
+                        } catch (e: IllegalArgumentException) {
                             false
                         }
                     ) {
@@ -215,11 +246,11 @@ open class Cmd(
         cmdOptions.firstOrNull() { it.required && !it.given }?.apply { error("Missing option: ${longName ?: name}") }
         // CHECK MINIMUM ARGUMENT NUMBER
         if (argument.values.size < argument.minimum) {
-            error("Too few arguments: ${argument.values.size} (min: ${argument.minimum}, max: ${argument.minimum})")
+            error("Too few arguments: ${argument.values.size} (min: ${argument.minimum}, max: ${argument.maximum})")
         }
         // CHECK MAXIMUM ARGUMENT NUMBER
         if (argument.values.size > argument.maximum) {
-            error("Too many arguments: ${argument.values.size} (min: ${argument.minimum}, max: ${argument.minimum})")
+            error("Too many arguments: ${argument.values.size} (min: ${argument.minimum}, max: ${argument.maximum})")
         }
         function?.invoke(this)
     }
@@ -299,12 +330,40 @@ fun Cmd.optionTime(
 fun Cmd.optionBool(
     name: String,
     longName: String? = null,
-    desc: String,
+    description: String,
     converter: (String) -> Boolean = { it.toBoolean() },
-    func: ((Cmd) -> Unit)? = null,
+    function: ((Cmd) -> Unit)? = null,
 ) =
-    CmdOption<Boolean>(name, longName, desc, false, false, function=func, converter=converter).also { this += it }
+    CmdOption<Boolean>(name, longName, description, false, false, function=function, converter=converter).also { this += it }
 
+/**
+ * Generic typed command-line option with conversion, validation, and callback support.
+ *
+ * Supports both short (-f) and long (--file) option formats. Automatically converts
+ * string input to the target type [T] using a provided converter function.
+ *
+ * Implements Kotlin's property delegation pattern for seamless use with the `by` operator:
+ * `val option by cmd.option(...)` automatically registers and provides access to the parsed value.
+ *
+ * @param T The target type after conversion (String, Int, Boolean, LocalDate, etc.)
+ * @property name Short option name without dash (e.g., "f" for -f). Single character recommended.
+ * @property longName Optional long option name without dashes (e.g., "file" for --file).
+ * @property description Help text shown in usage output.
+ * @property withValue Whether this option expects a value. False for boolean flags (no value required).
+ * @property defaultValue Default value if option not provided on command line. Null means option is required.
+ * @property converter Function to convert string input to target type [T]. Throws exception on conversion failure.
+ * @property function Optional callback lambda invoked when this option is parsed. Receives the command object.
+ *
+ * **Example:**
+ * ```kotlin
+ * val cmd = Cmd("app", "My app")
+ * val count by cmd.optionInt("c", "count", "Item count", defaultValue = 10)
+ * val verbose by cmd.optionBool("v", "verbose", "Verbose output")
+ * ```
+ *
+ * @see Cmd for main command configuration
+ * @see getValue for property delegation implementation
+ */
 class CmdOption<T>(
     val name: String,
     val longName: String? = null,
@@ -345,6 +404,31 @@ class CmdOption<T>(
 }
 
 
+/**
+ * Positional command-line arguments with cardinality constraints and default values.
+ *
+ * Manages a variable-length list of positional arguments (non-option values) parsed from
+ * the command line. Enforces minimum and maximum argument count constraints.
+ *
+ * Implements Kotlin's property delegation pattern for seamless use with the `by` operator:
+ * `val args by cmd.arguments(...)` automatically registers and provides access to the parsed values.
+ *
+ * @property name Argument name shown in usage output (e.g., "files" displays as <files>).
+ * @property minimum Minimum number of arguments required. Validation fails if fewer provided.
+ * @property maximum Maximum number of arguments accepted. Validation fails if more provided.
+ * @property values The list of parsed argument values. Initially empty, populated after parsing.
+ *
+ * **Example:**
+ * ```kotlin
+ * val cmd = Cmd("copy", "Copy files")
+ * val files by cmd.arguments("source_files", count = 1..Int.MAX_VALUE)
+ * // Requires 1 or more arguments
+ * ```
+ *
+ * @throws IllegalArgumentException if minimum/maximum constraints are invalid (negative or min > max).
+ * @see Cmd.arguments for creating argument instances
+ * @see getValue for property delegation implementation
+ */
 class CmdArgument(
     internal val name: String,
     internal val minimum: Int,
