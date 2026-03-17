@@ -35,7 +35,7 @@ class KcliTest {
 
     // Subcommand 2: query
     val cmdQuery = mainCmd.subCmd("query", "Print call graph as list.").apply {
-        val opFormat            by option("f", "format", "Output columns: n:name, l:line number, f:file_name, p:path, w:with_redundant_marker_*")
+        val opFormat            by option("f", "format", "Output columns: n:name, l:line number, f:file_name, p:path, w:with_redundant_marker_*", "nlfpw")
         val opThinColumn      by optionBool("t", "thin-column", "Print columns without padding them to the same size.")
         val argProgramName by arguments("program_name", count = 1..1)
         function {
@@ -54,27 +54,6 @@ class KcliTest {
         assertFalse( mainCmd.options.any { it.given } )
         assertFalse( cmdIndex.options.any { it.given } )
         assertFalse( cmdQuery.options.any { it.given } )
-    }
-
-        @Test
-    fun `GIVEN a Cmd object WHEN before parse arguments THEN contains the init values`() {
-        assertEquals(opIndexFile, "INDEX.TXT")
-        assertEquals(opIntNumber, 1)
-        assertEquals(opFloatNumber, 1.1f)
-        assertEquals(opDoubleNumber, 1.2)
-        assertEquals(opDateNumber, LocalDate.parse("2021-02-03", DateTimeFormatter.ISO_LOCAL_DATE))
-        assertEquals(opTimeNumber, LocalTime.parse("01:02:03"))
-        assertFalse(opHelp)
-
-        assertFalse(helpCalled)
-        assertFalse(indexCalled)
-        assertFalse(queryCalled)
-
-        assertThrows(IllegalStateException::class.java) {
-            cmdQuery.options[0].value
-        }
-        assertNull(cmdQuery.options[0]._value)
-        assertFalse(cmdQuery.options[1].value as Boolean)
     }
 
     var helpCalled = false

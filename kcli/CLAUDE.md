@@ -3,6 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 **KCLI** is a Kotlin library for building type-safe CLI applications with options, subcommands, and typed arguments.
+The program exits immediately if there is a problem with the parameters.
 
 ## Build and Development Commands
 

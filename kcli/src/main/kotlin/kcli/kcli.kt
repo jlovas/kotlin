@@ -122,7 +122,10 @@ open class Cmd(
         get() = argument.values
 
     operator fun plusAssign(option: CmdOption<*>) {
-        cmdOptions.forEach { if (it.name == option.name) error("Option already exists: ${option.name}") }
+        cmdOptions.forEach { 
+            if (it.name == option.name) error("Option already exists: ${option.name}") 
+            if (it.longName != null && it.longName == option.longName) error("Option already exists: ${option.longName}") 
+        }
         cmdOptions.add(option)
     }
 
@@ -132,6 +135,7 @@ open class Cmd(
     }
 
     fun subCmd(name: String, description: String, function: (Cmd.() -> Unit)? = null): Cmd {
+        require(subCmds.none { it.name == name }) { "Subcommand already exists: $name" }
         val cmd = Cmd(name, description, function = function)
         cmd.rootCmd = this
         subCmds.add(cmd)
@@ -186,72 +190,91 @@ open class Cmd(
 
     fun fromArgs(args: Array<String>) {
         if (args.isEmpty()) {
-            printUsage()
-            exitProcess(0)
+            val missingOptions = cmdOptions.filter { it.required && !it.given }
+            if (missingOptions.isNotEmpty()){
+                println("Error: Missing required options: ${missingOptions.joinToString(", ") { it.longName ?: it.name }}")
+                printUsage()
+                exitProcess(1)
+            }
+            if (subCmds.isNotEmpty()){
+                println("Error: Missing subcommand. Expected one of: ${subCmds.joinToString(", ") { it.name }}")
+                printUsage()
+                exitProcess(1)
+            }
+            if (argument.minimum > 0){
+                println("Error: Missing arguments: expected at least ${argument.minimum}")
+                printUsage()
+                exitProcess(1)
+            }
+            function?.invoke(this)
+            return
         }
 
         var index = 0
-        while (index < args.size) {
+        // OPTION PARSE: options must come before subcommand or arguments
+        while (index < args.size && args[index].startsWith("-")) {
             val arg = args[index++]
-            // OPTION
-            if (arg.startsWith("-")) {
-                val option =
-                    if (arg.startsWith("--")) {
-                        // LONG OPTION
-                        val longName = arg.substring(2)
-                        cmdOptions.find { it.longName == longName } ?: error("Unknown long option: $longName")
-                    } else {
-                        // SHORT OPTION
-                        val name = arg.substring(1)
-                        cmdOptions.find { it.name == name }
-                            ?: error("Unknown short option: $name")
-                    }
-
-                // OPTION VALUE
-                if (option.withValue) {
-                    val nextArg = args.getOrNull(index++) ?: error("Missing value for option: $arg")
-                    if (try {
-                            option.converter(nextArg) != null
-                        } catch (e: NumberFormatException) {
-                            false
-                        } catch (e: IllegalArgumentException) {
-                            false
-                        }
-                    ) {
-                        option.setStringValue(nextArg)
-                    } else {
-                        error("Wrong value for option: $arg: $nextArg")
-                    }
+            val option =
+                if (arg.startsWith("--")) {
+                    // LONG OPTION
+                    val longName = arg.substring(2)
+                    cmdOptions.find { it.longName == longName } ?: error("Unknown long option: $longName")
                 } else {
-                    option.setStringValue(true.toString())
+                    // SHORT OPTION
+                    val name = arg.substring(1)
+                    cmdOptions.find { it.name == name }
+                        ?: error("Unknown short option: $name")
                 }
 
-                // OPTION FUNCTION
-                option.function?.invoke(this)
+            // OPTION VALUE IF REQUIRED
+            if (option.withValue) {
+                val nextArg = args.getOrNull(index++) ?: error("Missing value for option: $arg")
+                try { 
+                    option.setStringValue(nextArg)
+                }catch (e: Throwable) { 
+                    when (e) {
+                        is NumberFormatException -> error("Invalid number format for option: $arg: $nextArg")
+                        is IllegalArgumentException -> error("Invalid value for option: $arg: $nextArg (${e.message})")
+                        else -> throw e
+                    }                        
+                }
             } else {
-                val cmd = subCmds.find { it.name == arg }
-                if (cmd == null) {
-                    // ARGUMENT
-                    argument.values = args.slice((index - 1)..<args.size)
-                    break
-                } else {
-                    // SUBCOMMAND
-                    cmd.fromArgs(args.copyOfRange(index, args.size))
-                    break
-                }
+                option.setStringValue(true.toString())
             }
+
+            // OPTION FUNCTION
+            option.function?.invoke(this)
+        }
+        
+        // CHECK REQUIRED OPTIONS BEFORE CONTINUING
+        cmdOptions.filter { it.required && !it.given }.takeIf { it.isNotEmpty() }?.let {
+            error("Missing required options: ${it.joinToString(", ") { it.longName ?: it.name }}")
         }
 
-        // CHECK REQUIRED OPTIONS
-        cmdOptions.firstOrNull() { it.required && !it.given }?.apply { error("Missing option: ${longName ?: name}") }
-        // CHECK MINIMUM ARGUMENT NUMBER
-        if (argument.values.size < argument.minimum) {
-            error("Too few arguments: ${argument.values.size} (min: ${argument.minimum}, max: ${argument.maximum})")
+        // NO MORE OPTIONS, PARSE SUBCOMMAND OR ARGUMENTS, CHECK SUBCOMMAND FIRST
+        if( subCmds.isNotEmpty() ) {
+            if (index >= args.size) {
+                println("Error: Missing required subcommand.\n")
+                printUsage()
+                exitProcess(1)
+            }
+            val subCmd = subCmds.find { it.name == args[index] }
+            if (subCmd == null) {
+                error("Unknown subcommand: '${args[index]}'. Expected one of: ${subCmds.joinToString(", ") { it.name }}")
+            }
+            subCmd.fromArgs(args.copyOfRange(index + 1, args.size))
+            return
         }
-        // CHECK MAXIMUM ARGUMENT NUMBER
-        if (argument.values.size > argument.maximum) {
-            error("Too many arguments: ${argument.values.size} (min: ${argument.minimum}, max: ${argument.maximum})")
+
+        // Every remaining arg is considered as positional argument value
+        argument.values = args.drop(index)
+        require(argument.values.size >= argument.minimum) {
+            "Too few arguments: ${argument.values.size} (min: ${argument.minimum}, max: ${argument.maximum})"
         }
+        require(argument.values.size <= argument.maximum) {
+            "Too many arguments: ${argument.values.size} (min: ${argument.minimum}, max: ${argument.maximum})"
+        }
+        // ALWAYS CALL FUNCTION IF DEFINED AND EXIT
         function?.invoke(this)
     }
 }
@@ -262,8 +285,8 @@ fun Cmd.option(
     description: String,
     defaultValue: String? = null,
     function: ((Cmd) -> Unit)? = null,
-) =
-    CmdOption<String>(name, longName, description, true, defaultValue, function= function).also { this += it }
+) = 
+    CmdOption<String>(name, longName, description, true, defaultValue, function= function, converter= { it }).also { this += it }
 
 fun Cmd.optionInt(
     name: String,
@@ -370,7 +393,7 @@ class CmdOption<T>(
     val description: String,
     val withValue: Boolean,
     val defaultValue: T? = null,
-    val converter: ((String) -> T) = { it as? T ?: error("No matching converter for the option: ${longName ?: name}") },
+    val converter: ((String) -> T) = { throw NotImplementedError("Converter not implemented for option ${longName ?: name}") },
     val function: ((Cmd) -> Unit)? = null,
 ) {
     internal var _value: T? = null
@@ -425,7 +448,7 @@ class CmdOption<T>(
  * // Requires 1 or more arguments
  * ```
  *
- * @throws IllegalArgumentException if minimum/maximum constraints are invalid (negative or min > max).
+ * @throws IllegalStateException if minimum/maximum constraints are invalid (negative or min > max).
  * @see Cmd.arguments for creating argument instances
  * @see getValue for property delegation implementation
  */
