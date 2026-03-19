@@ -1,0 +1,9 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "gradle test": true,
+        "gradle clean": true,
+        "gradle -p /Users/jlovas/workspace.cpi/kotlin.git/kcli": true,
+        "./gradlew": true,
+        "/Users/jlovas/workspace.cpi/kotlin.git/kcli/gradlew": true
+    }
+}

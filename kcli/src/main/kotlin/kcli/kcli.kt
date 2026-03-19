@@ -115,16 +115,16 @@ open class Cmd(
     val options: List<CmdOption<*>>
         get() = cmdOptions
 
-    val subcommands: Map<String,Cmd>
+    val subcommands: Map<String, Cmd>
         get() = subCmds.associateBy { it.name }
 
     val arguments: List<String>
         get() = argument.values
 
     operator fun plusAssign(option: CmdOption<*>) {
-        cmdOptions.forEach { 
-            if (it.name == option.name) error("Option already exists: ${option.name}") 
-            if (it.longName != null && it.longName == option.longName) error("Option already exists: ${option.longName}") 
+        cmdOptions.forEach {
+            if (it.name == option.name) error("Option already exists: ${option.name}")
+            if (it.longName != null && it.longName == option.longName) error("Option already exists: ${option.longName}")
         }
         cmdOptions.add(option)
     }
@@ -143,7 +143,7 @@ open class Cmd(
     }
 
     fun argument(name: String, default: String? = null) =
-        arguments(name, count = 1, defaults = if (default == null) emptyList() else listOf(default) )
+        arguments(name, count = 1, defaults = if (default == null) emptyList() else listOf(default))
 
     fun arguments(name: String, count: Int, defaults: List<String> = emptyList()) =
         arguments(name, count..count, defaults)
@@ -160,7 +160,7 @@ open class Cmd(
     operator fun invoke(args: Array<String>) = fromArgs(args)
 
     fun printUsage() {
-        if ( isRootCmd() ) {
+        if (isRootCmd()) {
             println()
             println("Description: ${description}")
             println()
@@ -191,17 +191,17 @@ open class Cmd(
     fun fromArgs(args: Array<String>) {
         if (args.isEmpty()) {
             val missingOptions = cmdOptions.filter { it.required && !it.given }
-            if (missingOptions.isNotEmpty()){
+            if (missingOptions.isNotEmpty()) {
                 println("Error: Missing required options: ${missingOptions.joinToString(", ") { it.longName ?: it.name }}")
                 printUsage()
                 exitProcess(1)
             }
-            if (subCmds.isNotEmpty()){
+            if (subCmds.isNotEmpty()) {
                 println("Error: Missing subcommand. Expected one of: ${subCmds.joinToString(", ") { it.name }}")
                 printUsage()
                 exitProcess(1)
             }
-            if (argument.minimum > 0){
+            if (argument.minimum > 0) {
                 println("Error: Missing arguments: expected at least ${argument.minimum}")
                 printUsage()
                 exitProcess(1)
@@ -229,14 +229,14 @@ open class Cmd(
             // OPTION VALUE IF REQUIRED
             if (option.withValue) {
                 val nextArg = args.getOrNull(index++) ?: error("Missing value for option: $arg")
-                try { 
+                try {
                     option.setStringValue(nextArg)
-                }catch (e: Throwable) { 
+                } catch (e: Throwable) {
                     when (e) {
                         is NumberFormatException -> error("Invalid number format for option: $arg: $nextArg")
                         is IllegalArgumentException -> error("Invalid value for option: $arg: $nextArg (${e.message})")
                         else -> throw e
-                    }                        
+                    }
                 }
             } else {
                 option.setStringValue(true.toString())
@@ -245,14 +245,14 @@ open class Cmd(
             // OPTION FUNCTION
             option.function?.invoke(this)
         }
-        
+
         // CHECK REQUIRED OPTIONS BEFORE CONTINUING
         cmdOptions.filter { it.required && !it.given }.takeIf { it.isNotEmpty() }?.let {
             error("Missing required options: ${it.joinToString(", ") { it.longName ?: it.name }}")
         }
 
         // NO MORE OPTIONS, PARSE SUBCOMMAND OR ARGUMENTS, CHECK SUBCOMMAND FIRST
-        if( subCmds.isNotEmpty() ) {
+        if (subCmds.isNotEmpty()) {
             if (index >= args.size) {
                 println("Error: Missing required subcommand.\n")
                 printUsage()
@@ -286,7 +286,7 @@ fun Cmd.option(
     defaultValue: String? = null,
     function: ((Cmd) -> Unit)? = null,
 ) = 
-    CmdOption<String>(name, longName, description, true, defaultValue, function= function, converter= { it }).also { this += it }
+    CmdOption<String>(name, longName, description, true, defaultValue, function = function, converter = { it }).also { this += it }
 
 fun Cmd.optionInt(
     name: String,
@@ -296,7 +296,7 @@ fun Cmd.optionInt(
     converter: (String) -> Int = { it.toInt() },
     function: ((Cmd) -> Unit)? = null,
 ) =
-    CmdOption<Int>(name, longName, description, true, defaultValue, function= function, converter= converter).also { this += it }
+    CmdOption<Int>(name, longName, description, true, defaultValue, function = function, converter = converter).also { this += it }
 
 fun Cmd.optionFloat(
     name: String,
@@ -306,7 +306,7 @@ fun Cmd.optionFloat(
     converter: (String) -> Float = { it.toFloat() },
     function: ((Cmd) -> Unit)? = null,
 ) =
-    CmdOption<Float>(name, longName, description, true, defaultValue, function= function, converter= converter).also { this += it }
+    CmdOption<Float>(name, longName, description, true, defaultValue, function = function, converter = converter).also { this += it }
 
 fun Cmd.optionDouble(
     name: String,
@@ -316,7 +316,7 @@ fun Cmd.optionDouble(
     converter: (String) -> Double = { it.toDouble() },
     function: ((Cmd) -> Unit)? = null,
 ) =
-    CmdOption<Double>(name, longName, description, true, defaultValue, function= function, converter= converter).also { this += it }
+    CmdOption<Double>(name, longName, description, true, defaultValue, function = function, converter = converter).also { this += it }
 
 fun Cmd.optionDate(
     name: String,
@@ -329,7 +329,7 @@ fun Cmd.optionDate(
     val defaultDateValue = defaultValue?.let {
         LocalDate.parse(defaultValue, DateTimeFormatter.ISO_LOCAL_DATE)
     }
-    val option = CmdOption<LocalDate>(name, longName, description, true, defaultDateValue, function= function, converter= converter)
+    val option = CmdOption<LocalDate>(name, longName, description, true, defaultDateValue, function = function, converter = converter)
     this += option
     return option
 }
@@ -339,13 +339,13 @@ fun Cmd.optionTime(
     longName: String? = null,
     description: String,
     defaultValue: String? = null,
-    converter: ((String) -> LocalTime) = {  LocalTime.parse(it) },
+    converter: ((String) -> LocalTime) = { LocalTime.parse(it) },
     function: ((Cmd) -> Unit)? = null,
 ): CmdOption<LocalTime> {
     val defaultTimeValue = defaultValue?.let {
         LocalTime.parse(defaultValue)
     }
-    val option = CmdOption<LocalTime>(name, longName, description, true, defaultTimeValue, function= function, converter= converter)
+    val option = CmdOption<LocalTime>(name, longName, description, true, defaultTimeValue, function = function, converter = converter)
     this += option
     return option
 }
@@ -357,7 +357,7 @@ fun Cmd.optionBool(
     converter: (String) -> Boolean = { it.toBoolean() },
     function: ((Cmd) -> Unit)? = null,
 ) =
-    CmdOption<Boolean>(name, longName, description, false, false, function=function, converter=converter).also { this += it }
+    CmdOption<Boolean>(name, longName, description, false, false, function = function, converter = converter).also { this += it }
 
 /**
  * Generic typed command-line option with conversion, validation, and callback support.
@@ -418,14 +418,13 @@ class CmdOption<T>(
     override fun toString(): String {
         val usage = StringBuilder()
         usage.append("    -${name}")
-        if (longName != null ) usage.append(" --$longName ") else usage.append("        ")
+        if (longName != null) usage.append(" --$longName ") else usage.append("        ")
         if (required) usage.append('*')
         usage.append(" ${description} ")
         if (defaultValue != null) usage.append("(default: '${defaultValue}')")
         return usage.toString()
     }
 }
-
 
 /**
  * Positional command-line arguments with cardinality constraints and default values.
